@@ -1,0 +1,61 @@
+# Visual Studio / .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Rider
+.idea/
+*.sln.iml
+
+# Build results
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+*.vsix
+*.db
+*.opendb
+*.tmp
+*.tmp_proj
+
+# Publish output
+publish/
+
+# NuGet
+*.nupkg
+*.snupkg
+project.assets.json
+*.dbmdl
+.nuget/
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# Visual Studio Code
+.vscode/
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# User-specific files
+*.rsuser
+*.dotCover
+
+# Local NuGet packages
+*.local
+
+# JetBrains Rider
+.idea/
+
+# Mac OS
+.DS_Store
+
+# Generated config from build
+*.config
