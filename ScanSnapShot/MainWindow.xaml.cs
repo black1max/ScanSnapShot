@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         SetupEventHandlers();
         ApplySettingsToUI();
         AddLog("アプリケーションを起動しました。設定をロードしました。");
+        LogCurrentSettings("現在の設定値");
     }
 
     private void SetupEventHandlers()
@@ -424,24 +425,29 @@ public partial class MainWindow : Window
         {
             UpdateUiForState(true);
 
-            var capArea = _settings.EffectiveCaptureArea;
-            var capInfo = _settings.IsCaptureFullScreen
-                ? $"全画面 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})"
-                : $"指定範囲 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})";
-            var thumbInfo = _settings.ShowThumbnail ? $"{_settings.ThumbnailDurationSeconds}秒" : "OFF";
-
-            AddLog("==================== 監視開始 ====================");
-            AddLog($"[監視エリア (ScanArea)] X={_settings.ScanArea.X}, Y={_settings.ScanArea.Y}, 幅={_settings.ScanArea.Width}, 高さ={_settings.ScanArea.Height}");
-            AddLog($"[キャプチャーエリア (CaptureArea)] {capInfo}");
-            AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms, サムネイル={thumbInfo}");
-            AddLog($"[保存先フォルダー] {_settings.SaveDirectory}");
+            LogCurrentSettings("監視開始");
             AddLog("タスクトレイに格納してバックグラウンド監視を開始しました。");
-            AddLog("==================================================");
 
             // Minimize to system tray
             _trayIconService.Show();
             Hide();
         }
+    }
+
+    private void LogCurrentSettings(string header = "現在の設定値")
+    {
+        var capArea = _settings.EffectiveCaptureArea;
+        var capInfo = _settings.IsCaptureFullScreen
+            ? $"全画面 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})"
+            : $"指定範囲 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})";
+        var thumbInfo = _settings.ShowThumbnail ? $"{_settings.ThumbnailDurationSeconds}秒" : "OFF";
+
+        AddLog($"==================== {header} ====================");
+        AddLog($"[監視エリア (ScanArea)] X={_settings.ScanArea.X}, Y={_settings.ScanArea.Y}, 幅={_settings.ScanArea.Width}, 高さ={_settings.ScanArea.Height}");
+        AddLog($"[キャプチャーエリア (CaptureArea)] {capInfo}");
+        AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms, サムネイル={thumbInfo}");
+        AddLog($"[保存先フォルダー] {_settings.SaveDirectory}");
+        AddLog("==================================================");
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
