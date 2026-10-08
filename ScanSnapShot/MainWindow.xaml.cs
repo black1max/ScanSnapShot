@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private AppSettings _settings;
     private readonly WatcherService _watcherService;
     private readonly TrayIconService _trayIconService;
+    private readonly ThumbnailService _thumbnailService;
     private bool _isExplicitExit = false;
 
     public MainWindow()
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
         _settings = SettingsService.Load();
         _watcherService = new WatcherService();
         _trayIconService = new TrayIconService();
+        _thumbnailService = new ThumbnailService();
 
         SetupEventHandlers();
         ApplySettingsToUI();
@@ -33,12 +35,24 @@ public partial class MainWindow : Window
 
     private void SetupEventHandlers()
     {
+        _watcherService.BeforeCapture += () =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _thumbnailService.CloseCurrent();
+            });
+        };
+
         _watcherService.SnapCaptured += (path) =>
         {
             Dispatcher.Invoke(() =>
             {
                 AddLog($"[撮影保存] {Path.GetFileName(path)}");
                 _trayIconService.ShowBalloon("キャプチャー完了", $"画像を保存しました: {Path.GetFileName(path)}");
+                if (_settings.ShowThumbnail)
+                {
+                    _thumbnailService.ShowThumbnail(path);
+                }
             });
         };
 
@@ -118,6 +132,7 @@ public partial class MainWindow : Window
         TxtSensitivity.Text = _settings.SensitivityThresholdPercent.ToString("F1");
         TxtCooldown.Text = _settings.CooldownMilliseconds.ToString();
         TxtSaveDirectory.Text = _settings.SaveDirectory;
+        ChkShowThumbnail.IsChecked = _settings.ShowThumbnail;
     }
 
     private void UpdateAreaLabels()
@@ -186,6 +201,7 @@ public partial class MainWindow : Window
         _settings.SensitivityThresholdPercent = sens;
         _settings.CooldownMilliseconds = cd;
         _settings.SaveDirectory = TxtSaveDirectory.Text;
+        _settings.ShowThumbnail = ChkShowThumbnail.IsChecked == true;
 
         SettingsService.Save(_settings);
         return true;
@@ -266,11 +282,16 @@ public partial class MainWindow : Window
     {
         if (!ValidateAndApplySettings(showDialogOnError: true)) return;
 
+        _thumbnailService.CloseCurrent();
         using var bmp = ScreenCaptureService.CaptureArea(_settings.CaptureArea);
         if (bmp != null)
         {
             var path = ScreenCaptureService.SaveBitmap(bmp, _settings.SaveDirectory);
             AddLog($"[テスト撮影成功] {path}");
+            if (_settings.ShowThumbnail)
+            {
+                _thumbnailService.ShowThumbnail(path);
+            }
             MessageBox.Show($"CaptureArea のテスト撮影に成功しました:\n{path}", "テスト成功", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         else
@@ -283,6 +304,7 @@ public partial class MainWindow : Window
     {
         if (_watcherService.IsRunning)
         {
+            _thumbnailService.CloseCurrent();
             await _watcherService.StopAsync();
             UpdateUiForState(false);
         }
@@ -304,7 +326,7 @@ public partial class MainWindow : Window
             AddLog("==================== 監視開始 ====================");
             AddLog($"[監視エリア (ScanArea)] X={_settings.ScanArea.X}, Y={_settings.ScanArea.Y}, 幅={_settings.ScanArea.Width}, 高さ={_settings.ScanArea.Height}");
             AddLog($"[キャプチャーエリア (CaptureArea)] X={_settings.CaptureArea.X}, Y={_settings.CaptureArea.Y}, 幅={_settings.CaptureArea.Width}, 高さ={_settings.CaptureArea.Height}");
-            AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms");
+            AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms, サムネイル={(_settings.ShowThumbnail ? "ON" : "OFF")}");
             AddLog($"[保存先フォルダー] {_settings.SaveDirectory}");
             AddLog("タスクトレイに格納してバックグラウンド監視を開始しました。");
             AddLog("==================================================");
@@ -373,6 +395,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _thumbnailService.CloseCurrent();
         ValidateAndApplySettings(showDialogOnError: false);
         if (_watcherService.IsRunning)
         {

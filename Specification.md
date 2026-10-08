@@ -52,6 +52,8 @@
 | `ScreenCaptureService` | `ScanSnapShot.Services` | GDI+ 画面キャプチャーおよびポインタ走査による画像差分率計算。 |
 | `WatcherService` | `ScanSnapShot.Services` | `Task.Run` および `CancellationToken` による定期画面監視ループ制御。 |
 | `TrayIconService` | `ScanSnapShot.Services` | `System.Windows.Forms.NotifyIcon` をラップしたタスクトレイ制御。 |
+| `ThumbnailService` | `ScanSnapShot.Services` | サムネイルプレビューウィンドウのライフサイクル（表示・消去）制御。 |
+| `ThumbnailWindow` | `ScanSnapShot.Views` | 画面右下に表示される半透明カード型サムネイルプレビュー。 |
 | `LogService` | `ScanSnapShot.Services` | NLog の初期化およびログ出力中継。 |
 
 ---
@@ -95,6 +97,7 @@
 | 変化しきい値 | `SensitivityThresholdPercent` | 実数 (double) | `0.1` 〜 `100.0` | `3.0` | % |
 | クールダウン | `CooldownMilliseconds` | 整数 (int) | `0` 〜 `300,000` | `1500` | ms |
 | 保存先フォルダー | `SaveDirectory` | 文字列 (string) | 有効なパス | `Pictures\ScanSnapShot` | - |
+| サムネイル表示 | `ShowThumbnail` | 真偽値 (bool) | `true` / `false` | `true` | - |
 
 ### 4.4 画像保存仕様
 * **保存形式**: PNG 形式 (`.png`)
@@ -105,7 +108,19 @@
   *(例: `Snap_2026_10_07_22_47_39_263.png`)*
 * **フォルダー自動生成**: 保存先フォルダーが存在しない場合は実行時に自動作成。
 
-### 4.5 タスクトレイ（NotifyIcon）常駐仕様
+### 4.5 サムネイルプレビュー仕様 (`ThumbnailWindow`, `ThumbnailService`)
+1. **表示仕様**:
+   * キャプチャー保存成功時（自動監視撮影およびテストキャプチャー）、画面右下に角丸カード型のサムネイルウィンドウを非アクティブ（`ShowActivated="False"`）で最前面表示。
+   * 作業の邪魔にならないようフォーカスを奪わず、作業中の操作を阻害しない。
+2. **自動消滅および消滅タイミング仕様（次のキャプチャーまでの消去保証）**:
+   * 表示後 **3秒間** 経過すると、0.4秒のフェードアウトアニメーションを経て自動的に消滅。
+   * **次のキャプチャー直前での強制消去**: 次のキャプチャー処理が実行される直前（`BeforeCapture` イベント）、または新しいサムネイルが表示される前に、既存のサムネイルを即座に非表示・クローズ。これにより、全画面キャプチャー時であっても次のキャプチャー画像にサムネイルが写り込むことを完全に防止する。
+   * 監視停止時・アプリ終了時にも即座に非表示・クローズ。
+3. **ユーザーインタラクション**:
+   * サムネイル本体のクリック: 既定の画像ビューアで対象の画像ファイルを開き、サムネイルを閉じる。
+   * 右上の「✕」ボタン押下: サムネイルを即座に閉じる。
+
+### 4.6 タスクトレイ（NotifyIcon）常駐仕様
 1. **トレイ格納タイミング**:
    * メイン画面で「監視開始」ボタンを押下したとき。
    * メインウィンドウの「最小化」ボタン（`_`）を押下したとき。
@@ -118,7 +133,7 @@
 3. **バルーン通知**:
    * キャプチャー保存成功時、Windows 通知領域にトースト通知（バルーンチップ）を表示。
 
-### 4.6 ログ仕様 (`NLog`)
+### 4.7 ログ仕様 (`NLog`)
 1. **ファイル構成**:
    * **出力先**: `[exe配置ディレクトリ]\logs\`
    * **ファイル名**: `${date:format=yyyy_MM_dd}_ScanSnapShot.log`
@@ -133,7 +148,7 @@
 4. **外部設定ファイル (`NLog.config`)**:
    * `autoReload="true"` を指定。アプリ稼働中であっても `NLog.config` を直接編集して保存することで、再起動なしにログフォーマット・出力レベルが動的に更新される。
 
-### 4.7 設定永続化仕様
+### 4.8 設定永続化仕様
 * **保存先**: `%APPDATA%\ScanSnapShot\settings.json`
 * **保存契機**:
   * 範囲選択（ScanArea / CaptureArea）決定時

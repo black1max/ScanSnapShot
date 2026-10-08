@@ -8,4 +8,5 @@ public class AppSettings
     public double SensitivityThresholdPercent { get; set; } = 3.0; // 3% of pixels changed
     public int CooldownMilliseconds { get; set; } = 1500;
     public string SaveDirectory { get; set; } = string.Empty;
+    public bool ShowThumbnail { get; set; } = true;
 }

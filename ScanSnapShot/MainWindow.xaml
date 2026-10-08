@@ -162,6 +162,21 @@
                         </ToolTip>
                     </TextBox.ToolTip>
                 </TextBox>
+
+                <!-- サムネイル表示設定 -->
+                <CheckBox Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" x:Name="ChkShowThumbnail"
+                          Content="キャプチャー時にサムネイルを表示" VerticalAlignment="Center" Margin="0,4"
+                          IsChecked="True">
+                    <CheckBox.ToolTip>
+                        <ToolTip>
+                            <StackPanel MaxWidth="300">
+                                <TextBlock Text="サムネイル表示" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBlock Text="画面キャプチャー成功時に、画面の右下にプレビューサムネイルを表示します。" TextWrapping="Wrap"/>
+                                <TextBlock Text="※サムネイルは数秒後または次のキャプチャーまでに自動的に消えます。" Margin="0,4,0,0" Foreground="#1570EF" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </ToolTip>
+                    </CheckBox.ToolTip>
+                </CheckBox>
             </Grid>
         </GroupBox>
 

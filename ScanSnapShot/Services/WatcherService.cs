@@ -14,6 +14,7 @@ public class WatcherService
 
     public bool IsRunning { get; private set; }
 
+    public event Action? BeforeCapture;
     public event Action<string>? SnapCaptured;
     public event Action<double>? DiffDetected;
     public event Action<string>? StatusChanged;
@@ -99,6 +100,7 @@ public class WatcherService
                         if (diff >= settings.SensitivityThresholdPercent)
                         {
                             // Trigger capture
+                            BeforeCapture?.Invoke();
                             using var captureBitmap = ScreenCaptureService.CaptureArea(settings.CaptureArea);
                             if (captureBitmap != null)
                             {
