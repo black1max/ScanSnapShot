@@ -13,6 +13,7 @@ public class TrayIconService : IDisposable
     public event Action? ShowMainWindowRequested;
     public event Action? StartCaptureRequested;
     public event Action? StopCaptureRequested;
+    public event Action? CaptureRequested;
     public event Action? ExitRequested;
 
     public TrayIconService()
@@ -46,6 +47,8 @@ public class TrayIconService : IDisposable
 
         contextMenu.Items.Add(_startMenuItem);
         contextMenu.Items.Add(_stopMenuItem);
+        contextMenu.Items.Add(new ToolStripSeparator());
+        contextMenu.Items.Add("画面をキャプチャー", null, (_, _) => CaptureRequested?.Invoke());
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add("アプリケーション終了", null, (_, _) => ExitRequested?.Invoke());
 

@@ -15,7 +15,7 @@ public partial class ThumbnailWindow : Window
     private readonly DispatcherTimer _autoCloseTimer;
     private bool _isClosing = false;
 
-    public ThumbnailWindow(string imagePath)
+    public ThumbnailWindow(string imagePath, int durationSeconds = 3)
     {
         InitializeComponent();
 
@@ -25,9 +25,10 @@ public partial class ThumbnailWindow : Window
         PositionToBottomRight();
         LoadImage(imagePath);
 
+        int seconds = Math.Max(1, durationSeconds);
         _autoCloseTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(3)
+            Interval = TimeSpan.FromSeconds(seconds)
         };
         _autoCloseTimer.Tick += (s, e) =>
         {

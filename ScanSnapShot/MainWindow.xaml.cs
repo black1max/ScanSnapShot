@@ -51,7 +51,7 @@ public partial class MainWindow : Window
                 _trayIconService.ShowBalloon("キャプチャー完了", $"画像を保存しました: {Path.GetFileName(path)}");
                 if (_settings.ShowThumbnail)
                 {
-                    _thumbnailService.ShowThumbnail(path);
+                    _thumbnailService.ShowThumbnail(path, _settings.ThumbnailDurationSeconds);
                 }
             });
         };
@@ -115,6 +115,16 @@ public partial class MainWindow : Window
             });
         };
 
+        _trayIconService.CaptureRequested += async () =>
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                // メニューが完全に閉じるのを少し待機して写り込みを防止
+                await Task.Delay(200);
+                await ExecuteCaptureAsync("トレイキャプチャー");
+            });
+        };
+
         _trayIconService.ExitRequested += () =>
         {
             Dispatcher.Invoke(() =>
@@ -127,12 +137,31 @@ public partial class MainWindow : Window
 
     private void ApplySettingsToUI()
     {
+        if (_settings.IsCaptureFullScreen)
+        {
+            RbCaptureFullScreen.IsChecked = true;
+        }
+        else
+        {
+            RbCaptureCustom.IsChecked = true;
+        }
+
         UpdateAreaLabels();
         TxtInterval.Text = _settings.IntervalMilliseconds.ToString();
         TxtSensitivity.Text = _settings.SensitivityThresholdPercent.ToString("F1");
         TxtCooldown.Text = _settings.CooldownMilliseconds.ToString();
         TxtSaveDirectory.Text = _settings.SaveDirectory;
         ChkShowThumbnail.IsChecked = _settings.ShowThumbnail;
+        TxtThumbnailDuration.Text = _settings.ThumbnailDurationSeconds.ToString();
+        TxtThumbnailDuration.IsEnabled = _settings.ShowThumbnail;
+    }
+
+    private void OnShowThumbnailCheckedChanged(object sender, RoutedEventArgs e)
+    {
+        if (TxtThumbnailDuration != null)
+        {
+            TxtThumbnailDuration.IsEnabled = ChkShowThumbnail.IsChecked == true;
+        }
     }
 
     private void UpdateAreaLabels()
@@ -140,8 +169,29 @@ public partial class MainWindow : Window
         var s = _settings.ScanArea;
         TxtScanAreaInfo.Text = $"X: {s.X}, Y: {s.Y}, 幅: {s.Width}, 高さ: {s.Height}";
 
-        var c = _settings.CaptureArea;
-        TxtCaptureAreaInfo.Text = $"X: {c.X}, Y: {c.Y}, 幅: {c.Width}, 高さ: {c.Height}";
+        if (_settings.IsCaptureFullScreen)
+        {
+            var full = ScreenCaptureService.GetFullScreenArea();
+            TxtCaptureAreaInfo.Text = $"全画面 (X: {full.X}, Y: {full.Y}, 幅: {full.Width}, 高さ: {full.Height})";
+            PanelCaptureCustomButtons.IsEnabled = false;
+            PanelCaptureCustomButtons.Opacity = 0.5;
+        }
+        else
+        {
+            var c = _settings.CaptureArea;
+            TxtCaptureAreaInfo.Text = $"X: {c.X}, Y: {c.Y}, 幅: {c.Width}, 高さ: {c.Height}";
+            PanelCaptureCustomButtons.IsEnabled = true;
+            PanelCaptureCustomButtons.Opacity = 1.0;
+        }
+    }
+
+    private void OnCaptureAreaModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        _settings.IsCaptureFullScreen = RbCaptureFullScreen.IsChecked == true;
+        UpdateAreaLabels();
+        SettingsService.Save(_settings);
+        AddLog($"キャプチャーエリアモードを変更: {(_settings.IsCaptureFullScreen ? "全画面" : "指定範囲")}");
     }
 
     private bool ValidateAndApplySettings(bool showDialogOnError = true)
@@ -197,11 +247,30 @@ public partial class MainWindow : Window
             return false;
         }
 
+        // 4. サムネイル表示時間
+        if (!int.TryParse(TxtThumbnailDuration.Text, out var duration) || duration < 1 || duration > 60)
+        {
+            if (showDialogOnError)
+            {
+                MessageBox.Show(
+                    "「サムネイル表示時間」は 1 〜 60 秒の範囲内の整数を入力してください。\n(推奨: 1 〜 10 秒, デフォルト: 3 秒)",
+                    "入力エラー",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                );
+                TxtThumbnailDuration.Focus();
+                TxtThumbnailDuration.SelectAll();
+            }
+            return false;
+        }
+
         _settings.IntervalMilliseconds = interval;
         _settings.SensitivityThresholdPercent = sens;
         _settings.CooldownMilliseconds = cd;
         _settings.SaveDirectory = TxtSaveDirectory.Text;
         _settings.ShowThumbnail = ChkShowThumbnail.IsChecked == true;
+        _settings.ThumbnailDurationSeconds = duration;
+        _settings.IsCaptureFullScreen = RbCaptureFullScreen.IsChecked == true;
 
         SettingsService.Save(_settings);
         return true;
@@ -278,25 +347,57 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnTestCaptureClicked(object sender, RoutedEventArgs e)
+    private async Task<string?> ExecuteCaptureAsync(string logPrefix = "手動キャプチャー")
     {
-        if (!ValidateAndApplySettings(showDialogOnError: true)) return;
+        if (!ValidateAndApplySettings(showDialogOnError: false)) return null;
 
         _thumbnailService.CloseCurrent();
-        using var bmp = ScreenCaptureService.CaptureArea(_settings.CaptureArea);
+
+        var area = _settings.EffectiveCaptureArea;
+        if (!area.IsValid)
+        {
+            AddLog("[エラー] キャプチャーエリアの範囲が無効です。");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settings.SaveDirectory))
+        {
+            AddLog("[エラー] 保存先フォルダーが指定されていません。");
+            return null;
+        }
+
+        using var bmp = ScreenCaptureService.CaptureArea(area);
         if (bmp != null)
         {
             var path = ScreenCaptureService.SaveBitmap(bmp, _settings.SaveDirectory);
-            AddLog($"[テスト撮影成功] {path}");
+            AddLog($"[{logPrefix}] {Path.GetFileName(path)}");
+            _trayIconService.ShowBalloon("キャプチャー完了", $"画像を保存しました: {Path.GetFileName(path)}");
             if (_settings.ShowThumbnail)
             {
-                _thumbnailService.ShowThumbnail(path);
+                _thumbnailService.ShowThumbnail(path, _settings.ThumbnailDurationSeconds);
             }
-            MessageBox.Show($"CaptureArea のテスト撮影に成功しました:\n{path}", "テスト成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            return path;
         }
         else
         {
-            MessageBox.Show("CaptureArea の指定が無効です。", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AddLog("[エラー] 画面キャプチャーに失敗しました。");
+            return null;
+        }
+    }
+
+    private async void OnTestCaptureClicked(object sender, RoutedEventArgs e)
+    {
+        if (!ValidateAndApplySettings(showDialogOnError: true)) return;
+
+        var path = await ExecuteCaptureAsync("テスト撮影成功");
+        if (!string.IsNullOrEmpty(path))
+        {
+            var modeText = _settings.IsCaptureFullScreen ? "全画面" : "CaptureArea";
+            MessageBox.Show($"{modeText} のテスト撮影に成功しました:\n{path}", "テスト成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            MessageBox.Show("画面キャプチャーに失敗しました。", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -323,10 +424,16 @@ public partial class MainWindow : Window
         {
             UpdateUiForState(true);
 
+            var capArea = _settings.EffectiveCaptureArea;
+            var capInfo = _settings.IsCaptureFullScreen
+                ? $"全画面 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})"
+                : $"指定範囲 (X={capArea.X}, Y={capArea.Y}, 幅={capArea.Width}, 高さ={capArea.Height})";
+            var thumbInfo = _settings.ShowThumbnail ? $"{_settings.ThumbnailDurationSeconds}秒" : "OFF";
+
             AddLog("==================== 監視開始 ====================");
             AddLog($"[監視エリア (ScanArea)] X={_settings.ScanArea.X}, Y={_settings.ScanArea.Y}, 幅={_settings.ScanArea.Width}, 高さ={_settings.ScanArea.Height}");
-            AddLog($"[キャプチャーエリア (CaptureArea)] X={_settings.CaptureArea.X}, Y={_settings.CaptureArea.Y}, 幅={_settings.CaptureArea.Width}, 高さ={_settings.CaptureArea.Height}");
-            AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms, サムネイル={(_settings.ShowThumbnail ? "ON" : "OFF")}");
+            AddLog($"[キャプチャーエリア (CaptureArea)] {capInfo}");
+            AddLog($"[監視パラメータ] 間隔={_settings.IntervalMilliseconds}ms, しきい値={_settings.SensitivityThresholdPercent:F1}%, クールダウン={_settings.CooldownMilliseconds}ms, サムネイル={thumbInfo}");
             AddLog($"[保存先フォルダー] {_settings.SaveDirectory}");
             AddLog("タスクトレイに格納してバックグラウンド監視を開始しました。");
             AddLog("==================================================");

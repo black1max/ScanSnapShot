@@ -59,9 +59,15 @@
                 <!-- CaptureArea -->
                 <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="6,0,0,0">
                     <StackPanel>
-                        <TextBlock Text="キャプチャーエリア (CaptureArea)" FontWeight="Bold" Foreground="#175CD3" FontSize="13"/>
+                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="キャプチャーエリア (CaptureArea)" FontWeight="Bold" Foreground="#175CD3" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <RadioButton x:Name="RbCaptureCustom" Content="指定範囲" GroupName="CaptureAreaMode" Margin="0,0,8,0"
+                                         IsChecked="True" Checked="OnCaptureAreaModeChanged" Cursor="Hand" VerticalAlignment="Center"/>
+                            <RadioButton x:Name="RbCaptureFullScreen" Content="全画面" GroupName="CaptureAreaMode"
+                                         Checked="OnCaptureAreaModeChanged" Cursor="Hand" VerticalAlignment="Center"/>
+                        </WrapPanel>
                         <TextBlock x:Name="TxtCaptureAreaInfo" Text="X: 0, Y: 0, W: 0, H: 0" Margin="0,6,0,8" Foreground="#344054"/>
-                        <WrapPanel Orientation="Horizontal">
+                        <WrapPanel x:Name="PanelCaptureCustomButtons" Orientation="Horizontal">
                             <Button Content="CaptureArea を範囲選択..." Click="OnSelectCaptureAreaClicked" Background="#EFF8FF" BorderBrush="#B2DDFF" Foreground="#175CD3"/>
                             <Button Content="ScanAreaと同じにする" Click="OnSyncCaptureAreaClicked" Background="#F2F4F7" BorderBrush="#D0D5DD"/>
                         </WrapPanel>
@@ -164,19 +170,45 @@
                 </TextBox>
 
                 <!-- サムネイル表示設定 -->
-                <CheckBox Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" x:Name="ChkShowThumbnail"
-                          Content="キャプチャー時にサムネイルを表示" VerticalAlignment="Center" Margin="0,4"
-                          IsChecked="True">
-                    <CheckBox.ToolTip>
-                        <ToolTip>
-                            <StackPanel MaxWidth="300">
-                                <TextBlock Text="サムネイル表示" FontWeight="Bold" Margin="0,0,0,4"/>
-                                <TextBlock Text="画面キャプチャー成功時に、画面の右下にプレビューサムネイルを表示します。" TextWrapping="Wrap"/>
-                                <TextBlock Text="※サムネイルは数秒後または次のキャプチャーまでに自動的に消えます。" Margin="0,4,0,0" Foreground="#1570EF" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </ToolTip>
-                    </CheckBox.ToolTip>
-                </CheckBox>
+                <WrapPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" VerticalAlignment="Center" Margin="0,4">
+                    <CheckBox x:Name="ChkShowThumbnail"
+                              Content="サムネイル表示" VerticalAlignment="Center" Margin="0,0,10,0"
+                              IsChecked="True" Checked="OnShowThumbnailCheckedChanged" Unchecked="OnShowThumbnailCheckedChanged">
+                        <CheckBox.ToolTip>
+                            <ToolTip>
+                                <StackPanel MaxWidth="300">
+                                    <TextBlock Text="サムネイル表示" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <TextBlock Text="画面キャプチャー成功時に、画面の右下にプレビューサムネイルを表示します。" TextWrapping="Wrap"/>
+                                    <TextBlock Text="※指定秒数経過後または次のキャプチャーまでに自動的に消えます。" Margin="0,4,0,0" Foreground="#1570EF" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </ToolTip>
+                        </CheckBox.ToolTip>
+                    </CheckBox>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="表示時間 (秒):" VerticalAlignment="Center" Margin="0,0,4,0">
+                            <TextBlock.ToolTip>
+                                <ToolTip>
+                                    <StackPanel MaxWidth="300">
+                                        <TextBlock Text="サムネイル表示時間 (秒)" FontWeight="Bold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="画面右下にサムネイルが表示されてから自動フェードアウトを開始するまでの時間（秒）です。" TextWrapping="Wrap"/>
+                                        <TextBlock Text="・設定範囲: 1 〜 60 秒 (デフォルト: 3秒)" Margin="0,4,0,0" Foreground="#1570EF" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </ToolTip>
+                            </TextBlock.ToolTip>
+                        </TextBlock>
+                        <TextBox x:Name="TxtThumbnailDuration" Width="44" VerticalAlignment="Center" Padding="4,2" Text="3" HorizontalContentAlignment="Center">
+                            <TextBox.ToolTip>
+                                <ToolTip>
+                                    <StackPanel MaxWidth="300">
+                                        <TextBlock Text="サムネイル表示時間 (秒)" FontWeight="Bold" Margin="0,0,0,4"/>
+                                        <TextBlock Text="画面右下にサムネイルが表示されてから自動フェードアウトを開始するまでの時間（秒）です。" TextWrapping="Wrap"/>
+                                        <TextBlock Text="・設定範囲: 1 〜 60 秒 (デフォルト: 3秒)" Margin="0,4,0,0" Foreground="#1570EF" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </ToolTip>
+                            </TextBox.ToolTip>
+                        </TextBox>
+                    </StackPanel>
+                </WrapPanel>
             </Grid>
         </GroupBox>
 

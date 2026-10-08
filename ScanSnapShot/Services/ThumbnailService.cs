@@ -10,7 +10,7 @@ public class ThumbnailService
 {
     private ThumbnailWindow? _currentWindow;
 
-    public void ShowThumbnail(string imagePath)
+    public void ShowThumbnail(string imagePath, int durationSeconds = 3)
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
@@ -20,7 +20,7 @@ public class ThumbnailService
             {
                 if (!File.Exists(imagePath)) return;
 
-                _currentWindow = new ThumbnailWindow(imagePath);
+                _currentWindow = new ThumbnailWindow(imagePath, durationSeconds);
                 _currentWindow.Closed += (s, e) =>
                 {
                     if (ReferenceEquals(_currentWindow, s))

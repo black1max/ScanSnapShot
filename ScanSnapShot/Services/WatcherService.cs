@@ -30,9 +30,9 @@ public class WatcherService
             return;
         }
 
-        if (!settings.CaptureArea.IsValid)
+        if (!settings.EffectiveCaptureArea.IsValid)
         {
-            ErrorOccurred?.Invoke("CaptureArea の範囲が無効です。");
+            ErrorOccurred?.Invoke("キャプチャーエリアの範囲が無効です。");
             return;
         }
 
@@ -101,7 +101,7 @@ public class WatcherService
                         {
                             // Trigger capture
                             BeforeCapture?.Invoke();
-                            using var captureBitmap = ScreenCaptureService.CaptureArea(settings.CaptureArea);
+                            using var captureBitmap = ScreenCaptureService.CaptureArea(settings.EffectiveCaptureArea);
                             if (captureBitmap != null)
                             {
                                 var savedPath = ScreenCaptureService.SaveBitmap(captureBitmap, settings.SaveDirectory);

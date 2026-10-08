@@ -9,6 +9,16 @@ namespace ScanSnapShot.Services;
 
 public static class ScreenCaptureService
 {
+    public static AreaRect GetFullScreenArea()
+    {
+        return new AreaRect(
+            (int)System.Windows.SystemParameters.VirtualScreenLeft,
+            (int)System.Windows.SystemParameters.VirtualScreenTop,
+            (int)System.Windows.SystemParameters.VirtualScreenWidth,
+            (int)System.Windows.SystemParameters.VirtualScreenHeight
+        );
+    }
+
     public static Bitmap? CaptureArea(AreaRect area)
     {
         if (!area.IsValid) return null;
