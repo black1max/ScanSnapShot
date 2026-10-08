@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly WatcherService _watcherService;
     private readonly TrayIconService _trayIconService;
     private readonly ThumbnailService _thumbnailService;
+    private readonly RemoteServerService _remoteServerService;
     private bool _isExplicitExit = false;
 
     public MainWindow()
@@ -27,11 +28,13 @@ public partial class MainWindow : Window
         _watcherService = new WatcherService();
         _trayIconService = new TrayIconService();
         _thumbnailService = new ThumbnailService();
+        _remoteServerService = new RemoteServerService();
 
         SetupEventHandlers();
         ApplySettingsToUI();
         AddLog("アプリケーションを起動しました。設定をロードしました。");
         LogCurrentSettings("現在の設定値");
+        SetupRemoteServer();
     }
 
     private void SetupEventHandlers()
@@ -514,6 +517,81 @@ public partial class MainWindow : Window
         {
             await _watcherService.StopAsync();
         }
+        await _remoteServerService.StopAsync();
         _trayIconService.Dispose();
+    }
+
+    private void SetupRemoteServer()
+    {
+        _remoteServerService.CaptureHandler = async () =>
+        {
+            return await Dispatcher.Invoke(() => ExecuteCaptureAsync("リモートキャプチャー"));
+        };
+
+        _remoteServerService.SettingsUpdateHandler = (newSettings) =>
+        {
+            var isValid = Dispatcher.Invoke(() =>
+            {
+                _settings = newSettings;
+                ApplySettingsToUI();
+                var valid = ValidateAndApplySettings(showDialogOnError: false);
+                if (valid)
+                {
+                    AddLog("リモートAPI経由で設定を更新・保存しました。");
+                    LogCurrentSettings("更新後の設定値");
+                }
+                return valid;
+            });
+            return Task.FromResult(isValid);
+        };
+
+        _remoteServerService.StartMonitoringHandler = () =>
+        {
+            var isRunning = Dispatcher.Invoke(() =>
+            {
+                if (_watcherService.IsRunning) return true;
+                StartMonitoringAndMinimize();
+                return _watcherService.IsRunning;
+            });
+            return Task.FromResult(isRunning);
+        };
+
+        _remoteServerService.StopMonitoringHandler = async () =>
+        {
+            return await Dispatcher.Invoke(async () =>
+            {
+                if (!_watcherService.IsRunning) return true;
+                _thumbnailService.CloseCurrent();
+                await _watcherService.StopAsync();
+                UpdateUiForState(false);
+                AddLog("リモートAPI経由で監視を停止しました。");
+                return true;
+            });
+        };
+
+        _remoteServerService.StatusProvider = () =>
+        {
+            return Dispatcher.Invoke(() => new
+            {
+                isRunning = _watcherService.IsRunning,
+                isCaptureFullScreen = _settings.IsCaptureFullScreen,
+                scanArea = _settings.ScanArea,
+                captureArea = _settings.EffectiveCaptureArea,
+                intervalMilliseconds = _settings.IntervalMilliseconds,
+                sensitivityThresholdPercent = _settings.SensitivityThresholdPercent,
+                cooldownMilliseconds = _settings.CooldownMilliseconds,
+                saveDirectory = _settings.SaveDirectory
+            });
+        };
+
+        _remoteServerService.SettingsProvider = () => _settings;
+
+        _remoteServerService.LogAction = (msg) =>
+        {
+            Dispatcher.Invoke(() => AddLog(msg));
+        };
+
+        // バックグラウンドでサーバーを起動 (remote_settings.json が存在する場合のみ有効)
+        _ = _remoteServerService.StartAsync();
     }
 }

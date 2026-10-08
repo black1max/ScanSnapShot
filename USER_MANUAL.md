@@ -15,7 +15,8 @@
 7. [タスクトレイ機能とバックグラウンド動作](#7-タスクトレイ機能とバックグラウンド動作)
 8. [ログ機能と NLog.config カスタマイズ](#8-ログ機能と-nlogconfig-カスタマイズ)
 9. [設定ファイルの保存場所と管理](#9-設定ファイルの保存場所と管理)
-10. [よくある質問 (FAQ)・トラブルシューティング](#10-よくある質問-faqトラブルシューティング)
+10. [外部アプリ・別PCからのリモート操作 (REST API)](#10-外部アプリ別pcからのリモート操作-rest-api)
+11. [よくある質問 (FAQ)・トラブルシューティング](#11-よくある質問-faqトラブルシューティング)
 
 ---
 
@@ -209,7 +210,96 @@ C:\Users\<ユーザー名>\AppData\Roaming\ScanSnapShot\settings.json
 
 ---
 
-## 10. よくある質問 (FAQ)・トラブルシューティング
+## 10. 外部アプリ・別PCからのリモート操作 (REST API)
+
+ScanSnapShot は、タスクトレイに格納（バックグラウンド動作）されている状態でも、外部のプログラムや同一LAN内の別PCから **HTTPS (REST API)** 経由でキャプチャー撮影や設定変更が可能です。
+通信経路はアプリ起動時に自動生成される自己署名証明書によって暗号化され、安全な API キー（パスワード）認証が適用されます。
+
+### 10.1 リモートサーバーの設定ファイル（`remote_settings.json`）
+画面上に余計な設定項目は増やさず、独立した設定ファイル（`%APPDATA%\ScanSnapShot\remote_settings.json`）で安全に管理します。
+
+> [!IMPORTANT]
+> **ファイルが存在しない場合、リモートサーバー機能は完全に無効（ポート開放もされません）** になります。
+> リモート機能を使用したい場合のみ、以下のフォルダーに `remote_settings.json` を作成してください。
+>
+> パス: `C:\Users\<ユーザー名>\AppData\Roaming\ScanSnapShot\remote_settings.json`
+
+```json
+{
+  "Enabled": true,
+  "Port": 50050,
+  "ApiKey": "scansnapshot_secret_key"
+}
+```
+
+* **`Enabled`**: リモートサーバー機能の ON / OFF。`false` にするか、または **`remote_settings.json` ファイル自体を削除（リネーム）** することでいつでも機能を無効化できます。
+* **`Port`**: 待ち受けポート番号（デフォルト: `50050`）。
+* **`ApiKey`**: 認証パスワード（任意の英数字に変更可能）。
+
+※ 別PCから接続する場合は、Windows ファイアウォールでポート `50050` (TCP) の受信を許可してください。
+
+### 10.2 提供される API エンドポイント
+
+すべての API はリクエストヘッダー `X-API-KEY: <あなたのキー>` またはクエリパラメータ `?apiKey=<あなたのキー>` で認証します。
+
+| メソッド | URL | 説明 | レスポンス |
+| :--- | :--- | :--- | :--- |
+| **POST** | `/api/capture` | 即座にキャプチャー撮影を実行 | 保存パス等の JSON。<br>`?download=true` を付けると画像バイナリ（PNG）を返却 |
+| **GET** | `/api/images` | キャプチャーフォルダー内のファイル数と画像一覧を取得 | ファイル数 (`totalCount`)、フォルダーパス、ファイル名・サイズ・日時一覧 JSON |
+| **GET** | `/api/images/{fileName}` | 指定したキャプチャー画像をダウンロード | 画像ファイル（`image/png`） |
+| **GET** | `/api/settings` | 現在の通常設定を取得 | 設定値 JSON |
+| **POST** | `/api/settings` | 座標や保存先等の設定を動的更新 | 更新結果 JSON (画面へも即時反映) |
+| **GET** | `/api/status` | 動作状態（監視中 / 待機中等）を取得 | 状態 JSON |
+| **POST** | `/api/monitor/start` | 自動監視を開始（トレイ格納） | 実行結果 JSON |
+| **POST** | `/api/monitor/stop` | 自動監視を停止 | 実行結果 JSON |
+
+### 10.3 外部からの操作コード例
+
+#### ① キャプチャーフォルダー内のファイル数やファイル名一覧を取得する (Python)
+```python
+import requests
+
+SERVER_URL = "https://192.168.1.100:50050"
+HEADERS = {"X-API-KEY": "scansnapshot_secret_key"}
+
+res = requests.get(f"{SERVER_URL}/api/images", headers=HEADERS, verify=False).json()
+print(f"総ファイル数: {res['totalCount']} 枚")
+for file in res["files"]:
+    print(f"- {file['fileName']} ({file['fileSizeBytes']} bytes, {file['createdAt']})")
+```
+
+#### ② Python から撮影して手元に画像を保存する（自己署名のため `verify=False`）
+```python
+import requests
+
+SERVER_URL = "https://192.168.1.100:50050"  # ScanSnapShotが動いているPCのIP
+HEADERS = {"X-API-KEY": "scansnapshot_secret_key"}
+
+# キャプチャーを実行し、画像バイナリを直接ダウンロード
+res = requests.post(f"{SERVER_URL}/api/capture?download=true", headers=HEADERS, verify=False)
+if res.status_code == 200:
+    with open("downloaded_snap.png", "wb") as f:
+        f.write(res.content)
+    print("キャプチャー画像を保存しました。")
+```
+
+#### ② curl コマンドから撮影（`-k` で証明書検証をスキップ）
+```bash
+curl -k -H "X-API-KEY: scansnapshot_secret_key" \
+     -X POST "https://localhost:50050/api/capture?download=true" \
+     --output my_capture.png
+```
+
+#### ③ 設定を変更する（Python の例: 全画面キャプチャーモードに切り替え）
+```python
+requests.post(f"{SERVER_URL}/api/settings", json={
+    "IsCaptureFullScreen": True
+}, headers=HEADERS, verify=False)
+```
+
+---
+
+## 11. よくある質問 (FAQ)・トラブルシューティング
 
 #### Q1. キャプチャーが頻繁に撮影されすぎてしまいます
 * **変化しきい値 (%)** を少し上げてみてください（例: `3.0` → `5.0` や `10.0`）。

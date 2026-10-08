@@ -37,6 +37,8 @@
     │
     ├─► [ TrayIconService ] (NotifyIcon 常駐 / コンテキストメニュー制御)
     │
+    ├─► [ RemoteServerService ] (Kestrel 自己署名HTTPS / REST API / トレイ常駐時リモート制御)
+    │
     └─► [ LogService ] ───► [ NLog.config ] ───► [ logs/yyyy_MM_dd_ScanSnapShot.log ]
 ```
 
@@ -54,6 +56,7 @@
 | `TrayIconService` | `ScanSnapShot.Services` | `System.Windows.Forms.NotifyIcon` をラップしたタスクトレイ制御。 |
 | `ThumbnailService` | `ScanSnapShot.Services` | サムネイルプレビューウィンドウのライフサイクル（表示・消去）制御。 |
 | `ThumbnailWindow` | `ScanSnapShot.Views` | 画面右下に表示される半透明カード型サムネイルプレビュー。 |
+| `RemoteServerService` | `ScanSnapShot.Services` | Kestrel による自己署名 HTTPS REST API サーバー。タスクトレイ格納時でも外部・別PCから操作可能。 |
 | `LogService` | `ScanSnapShot.Services` | NLog の初期化およびログ出力中継。 |
 
 ---
@@ -163,6 +166,30 @@
   * 「監視開始」「テストキャプチャー」実行時
   * アプリケーション終了（`OnWindowClosing`）時
 * **読み込み契機**: アプリケーション起動時（`MainWindow` コンストラクタ）
+
+### 4.9 リモート操作サーバー仕様 (`RemoteServerService`)
+1. **概要**:
+   * Kestrel による組み込み HTTPS REST API サーバー。タスクトレイ格納中であっても、同一PC内の外部アプリや同一LAN内の別PCから操作・設定・撮影が可能。
+   * **独立設定ファイル (`remote_settings.json`) による制御**:
+     * 設定ファイルパス: `%APPDATA%\ScanSnapShot\remote_settings.json`
+     * **ファイルが存在しない場合はサーバー機能は完全に無効（ポート開放も一切なし）**。
+     * ファイルが存在し、かつ `"Enabled": true` の場合のみ起動。画面UIには設定項目を配置せずシンプルさを維持。
+2. **自己署名証明書（自動生成 HTTPS）**:
+   * サーバー起動時に `%APPDATA%\ScanSnapShot\server.pfx` に自己署名証明書（RSA 2048bit）を自動生成・保存。
+   * 管理者権限での `netsh` 登録や証明書ストアへのインポート作業は一切不要。
+   * 通信経路（URL、ヘッダー、ボディ、画像データ）はすべて TLS/HTTPS により暗号化。
+3. **API キー認証**:
+   * リクエストヘッダー `X-API-KEY` またはクエリパラメータ `apiKey` による認証。
+   * `remote_settings.json` の `ApiKey` と照合（不一致時は `401 Unauthorized` 返却）。
+4. **エンドポイント一覧**:
+   * `POST /api/capture`: キャプチャーを即座に実行（トレイ格納時でも動作）。`?download=true` 指定時は画像バイナリ（`image/png`）を返却。
+   * `GET /api/images`: キャプチャーフォルダー（`SaveDirectory`）内のファイル数および画像一覧（ファイル名、サイズ、作成日時、ダウンロードURL）を取得。
+   * `GET /api/images/{fileName}`: 指定したキャプチャー画像ファイルをダウンロード（ディレクトリトラバーサル防止）。
+   * `GET /api/settings`: 現在の通常設定一覧を取得。
+   * `POST /api/settings`: 座標、しきい値、保存先等の設定を動的に更新・保存（UI表示へも即時同期）。
+   * `GET /api/status`: 監視動作状態（稼働フラグ、最新座標等）を取得。
+   * `POST /api/monitor/start`: 監視を開始してトレイ格納。
+   * `POST /api/monitor/stop`: 監視を停止。
 
 ---
 
